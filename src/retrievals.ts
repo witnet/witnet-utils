@@ -166,6 +166,7 @@ export const GraphQLQuery = (specs: {
     return new Class(Methods.HttpPost, {
         url: specs.url, 
         body: `{\"query\":\"${graphQlCompress(specs.query).replaceAll('"', '\\"')}\"}`,
+        headers: new Map<string,string>().set("Content-Type", "application/json"),
         script: specs?.script || new DefaultScript(),
         tuples: specs?.tuples
     })

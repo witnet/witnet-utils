@@ -2,6 +2,11 @@ const utils = require('./utils')
 
 import * as Reducers from './reducers'
 
+export enum RadonBytesEncoding {
+    HexString = 0,
+    Base64 = 1,
+};
+
 export class RadonType {
     protected _bytecode?: any; 
     protected _key?: string;
@@ -29,7 +34,7 @@ export class RadonType {
      */
     public _countArgs(): number {
         return Math.max(
-            utils.getMaxArgsIndexFromString(this._key),
+            utils.getMaxArgsIndexFromString(this?._key),
             this._prev?._countArgs() || 0
         );
     }
@@ -156,6 +161,26 @@ export class RadonArray extends RadonType {
         return new RadonString(this)
     }
     /**
+     * Join all items of the array into a value of the given type, optionally prefixing
+     * the result with some given constant. The array must be homogeneous, all items being
+     * of the same type as `outputType`. 
+     * @param outputType Radon type of the output value. 
+     * @param separator Separator to be used when joining strings. When joining RadonMaps, it can be used to settle base schema on resulting object.
+     */
+    public join<T extends RadonType>(
+        outputType: { new(prev?: RadonType, key?: string): T; }, 
+        separator?: string,
+    ) {
+        if (separator && typeof separator === 'string') {
+            this._bytecode = [ 0x12, separator, ]
+        } else {
+            this._bytecode = 0x12
+        }
+        this._method = "join"
+        this._params = `${separator && separator !== "" ? `"${separator}"`: `""`}`
+        return new outputType(this)
+    }
+    /**
      * Count the number of items. 
      * @returns A `RadonInteger` object.
      */
@@ -212,15 +237,6 @@ export class RadonArray extends RadonType {
 
 export class RadonBoolean extends RadonType {
     /**
-     * Cast value into a string. 
-     * @returns A `RadonString` object.
-     */
-    public asString() {
-        this._bytecode = 0x20
-        this._method = "asString"
-        return new RadonString(this)
-    }
-    /**
      * Reverse value.
      * @returns A `RadonBoolean` object.
      */
@@ -229,17 +245,26 @@ export class RadonBoolean extends RadonType {
         this._method = "negate"
         return new RadonBoolean(this)
     }
+    /**
+     * Cast value into a string. 
+     * @returns A `RadonString` object.
+     */
+    public stringify() {
+            this._bytecode = 0x20
+        this._method = "stringify"
+        return new RadonString(this)
+    }
 }
 
 export class RadonBytes extends RadonType {
     /**
-     * Serialize buffer as an hex string.
+     * Convert buffer into (big-endian) integer.
      * @returns A `RadonBytes` object.
      */
-    public asString() {
-        this._bytecode = 0x30
-        this._method = "asString"
-        return new RadonString(this)
+    public asInteger() {
+        this._bytecode = 0x32
+        this._method = "toInteger"
+        return new RadonInteger(this)
     }
     /**
      * Apply the SHA2-256 hash function.
@@ -249,6 +274,51 @@ export class RadonBytes extends RadonType {
         this._bytecode = [ 0x31, 0x0A ]
         this._method = "hash"
         return new RadonBytes(this)
+    }
+    /**
+     * Count the number of bytes. 
+     * @returns A `RadonInteger` object.
+     */
+    public length() {
+        this._bytecode = 0x34
+        this._method = "length"
+        return new RadonInteger(this)
+    }
+    /**
+     * Returns a slice extracted from the input buffer. 
+     * A `startIndex` of 0 refers to the beginning of the input buffer. If no `endIndex` is provided, it will be assumed 
+     * the length of the input buffer. Negative values will be relative to the end of the input buffer.
+     * @param startIndex Position within input buffer where the output buffer will start.
+     * @param endIndex Position within input buffer where the output buffer will end
+     * @returns A `RadonBytes` object.
+     */
+    public slice(startIndex: number = 0, endIndex?: number) {
+        if (endIndex !== undefined) {
+            this._bytecode = [ 0x3c, startIndex, endIndex ]
+            this._params = `${startIndex}, ${endIndex}`
+        } else {
+            this._bytecode = [ 0x3c, startIndex ]
+            this._params = `${startIndex}`
+        }
+        this._method = "slice"
+        return new RadonBytes(this)
+    }
+    /**
+     * Convert the input buffer into a string.
+     * @param encoding Enum integer value specifying the encoding schema on the output string, standing:
+     *   0 -> Hex string (default, if none was specified)
+     *   1 -> Base64 string
+     * @returns A `RadonString` object.
+     */
+    public stringify(encoding?: RadonBytesEncoding) {
+        if (encoding) {
+            this._bytecode = [ 0x30, encoding ]
+            this._params = `${RadonBytesEncoding[encoding]}`
+        } else {
+            this._bytecode = 0x30
+        }
+        this._method = "stringify"
+        return new RadonString(this)
     }
 }
 
@@ -261,15 +331,6 @@ export class RadonFloat extends RadonType {
         this._bytecode = 0x50
         this._method = "absolute"
         return new RadonFloat(this)
-    }
-    /**
-     * Stringify the float value.
-     * @returns A `RadonString` object.
-     */
-    public asString() {
-        this._bytecode = 0x51
-        this._method = "asString"
-        return new RadonString(this)
     }
     /**
      * Compute the lowest integer greater than or equal to the float value.
@@ -363,6 +424,15 @@ export class RadonFloat extends RadonType {
         return new RadonInteger(this)
     }
     /**
+     * Stringify the float value.
+     * @returns A `RadonString` object.
+     */
+    public stringify() {
+        this._bytecode = 0x51
+        this._method = "stringify"
+        return new RadonString(this)
+    }
+    /**
      * Take the integer part of the float value. 
      * @returns A `RadonInteger` object.
      */
@@ -382,24 +452,6 @@ export class RadonInteger extends RadonType {
         this._bytecode = 0x40
         this._method = "absolute"
         return new RadonInteger(this)
-    }
-    /**
-     * Cast into a float value.
-     * @returns A `RadonFloat` object.
-     */
-    public asFloat() {
-        this._bytecode = 0x41
-        this._method = "asFloat"
-        return new RadonFloat(this)
-    }
-    /**
-     * Stringify the value.
-     * @returns A `RadonString` object.
-     */
-    public asString() {
-        this._bytecode = 0x42
-        this._method = "asString"
-        return new RadonString(this)
     }
     /**
      * Determine if the integer value is greater than the given `input`. 
@@ -464,6 +516,33 @@ export class RadonInteger extends RadonType {
         this._method = "power"
         this._params = typeof value === 'string' ? `'${value}'` : value
         return new RadonInteger(this); 
+    }
+    /**
+     * Stringify the value.
+     * @returns A `RadonString` object.
+     */
+    public stringify() {
+        this._bytecode = 0x42
+        this._method = "stringify"
+        return new RadonString(this)
+    }
+    /**
+     * Cast into a big-endian bytes buffer.
+     * @returns A `RadonBytes` object.
+     */
+    public toBytes() {
+        this._bytecode = 0x4A
+        this._method = "toBytes"
+        return new RadonBytes(this)
+    }
+    /**
+     * Cast into a float value.
+     * @returns A `RadonFloat` object.
+     */
+    public toFloat() {
+        this._bytecode = 0x41
+        this._method = "toFloat"
+        return new RadonFloat(this)
     }
 }
 
@@ -573,6 +652,23 @@ export class RadonString extends RadonType {
         return new RadonBoolean(this)
     }
     /**
+     * Convert the input string into a bytes buffer.
+     * @param encoding Enum integer value specifying the encoding schema on the input string, standing:
+     *   0 -> Hex string (default, if none was specified)
+     *   1 -> Base64 string
+     * @returns A `RadonBytes` object.
+     */
+    public asBytes(encoding?: RadonBytesEncoding) {
+        if (encoding !== undefined) {
+            this._bytecode = [ 0x71, encoding ]
+            this._params = `${encoding} => \"${RadonBytesEncoding[encoding]}\"`
+        } else {
+            this._bytecode = 0x71
+        }
+        this._method = "asBytes"
+        return new RadonBytes(this)
+    }
+    /**
      * Cast into a float number.
      * @returns A `RadonFloat` object.
      */
@@ -582,7 +678,7 @@ export class RadonString extends RadonType {
         return new RadonFloat(this)
     }
     /**
-     * Count the number of items. 
+     * Count the number of chars. 
      * @returns A `RadonInteger` object.
      */
     public length() {
@@ -640,6 +736,52 @@ export class RadonString extends RadonType {
         this._bytecode = 0x78
         this._method = "parseXMLMap"
         return new RadonMap(this)
+    }
+    /**
+     * Replace with given `replacement` string, all parts of the input string that match with given regular expression. 
+     * @param regex Regular expression to be matched.
+     * @param replacement Text that will replace all occurences. 
+     * @returns A `RadonString` object.
+     */
+    public replace(regex: string = "", replacement: string = "") {
+        this._bytecode = [
+            0x7b,
+            regex,
+            replacement,
+        ]
+        this._method = "replace"
+        this._params = `/${regex}/, "${replacement}"`
+        return new RadonString(this)
+    }
+    /**
+     * Returns a slice extracted from the input string. 
+     * A `startIndex` of 0 refers to the beginning of the input string. If no `endIndex` is provided, it will be assumed 
+     * the length of the input string. Negative values will be relative to the end of the input string.
+     * @param startIndex Position within input string where the output string will start.
+     * @param endIndex Position within input string where the output string will end.
+     * @returns A `RadonString` object.
+     */
+    public slice(startIndex: number = 0, endIndex?: number) {
+        if (endIndex !== undefined) {
+            this._bytecode = [ 0x7c, startIndex, endIndex ]
+            this._params = `${startIndex}, ${endIndex}`
+        } else {
+            this._bytecode = [ 0x7c, startIndex ]
+            this._params = `${startIndex}`
+        }
+        this._method = "slice"
+        return new RadonString(this)
+    }
+    /**
+     * Divides input string into an array of substrings, 
+     * @param regex The string or regular expression to use for splitting.
+     * @returns A `RadonArray` object.
+     */
+    public split(regex: string = "\r") {
+        this._bytecode = [ 0x7d, regex ]
+        this._params = `/${regex}/`
+        this._method = "split"
+        return new RadonArray(this)
     }
     /**
      * Lower case all characters.

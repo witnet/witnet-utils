@@ -35,6 +35,7 @@ export class Template extends Class {
             retrieve: Retrieval | Retrieval[], 
             aggregate?: Reducer, 
             tally?: Reducer,
+            maxSize?: number,
         },
         tests?: Map<string, Args>
     ) {
@@ -43,6 +44,7 @@ export class Template extends Class {
             retrieve,
             aggregate: specs?.aggregate || Mode(),
             tally: specs?.tally || Mode(),
+            maxSize: specs?.maxSize || 32,
         })
         this.argsCount = retrieve.map(retrieval => retrieval?.argsCount).reduce((prev, curr) => Math.max(prev, curr), 0)
         if (this.argsCount == 0) {
@@ -96,13 +98,15 @@ export class Precompiled extends Class {
     constructor(specs: { 
         retrieve: Retrieval | Retrieval[], 
         aggregate?: Reducer, 
-        tally?: Reducer 
+        tally?: Reducer,
+        maxSize?: number,
     }) {
         const retrieve = Array.isArray(specs.retrieve) ? specs.retrieve as Retrieval[] : [ specs.retrieve ]
         super({
             retrieve,
             aggregate: specs?.aggregate || Mode(),
             tally: specs?.tally || Mode(),
+            maxSize: specs?.maxSize || 32,
         })
         let argsCount = retrieve.map(retrieval => retrieval.argsCount).reduce((prev, curr) => prev + curr)
         if (argsCount > 0) {

@@ -1,6 +1,6 @@
 {
   "name": "witnet-utils",
-  "version": "1.1.6",
+  "version": "2.0.0",
   "description": "Witnet utils module for building and deploying Witnet-provided artifacts",
   "main": "dist/index.js",
   "repository": "",
@@ -20,6 +20,7 @@
   "dependencies": {
     "cbor": "^8.0.0",
     "dotenv": "^16.3.1",
+    "ethereumjs-util": "^7.1.5",
     "graphql-query-compress": "^1.2.4",
     "lodash.merge": "^4.6.2",
     "web3-jsonrpc-gateway": "^1.8.3",

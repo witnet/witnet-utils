@@ -43,7 +43,9 @@ function proxyHandler<T>(t: { new(): T; }) {
 }
 
 export function countLeaves<T>(t: { new(): T; }, obj: any): number {
-    if (obj instanceof t) {
+    if (!obj) {
+        return 0;
+    } else if (obj instanceof t) {
         return 1;
     }
     else if (Array.isArray(obj)) {
